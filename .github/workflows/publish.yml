@@ -26,7 +26,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates git curl jq sudo
+            ca-certificates git curl python3
 
       - name: Checkout do repositório
         uses: actions/checkout@v4
@@ -51,11 +51,12 @@ jobs:
         id: get_version
         run: |
           RELEASE_JSON=$(curl -s https://codeberg.org/api/v1/repos/tenacityteam/tenacity/releases/latest)
-          VERSION=$(echo "$RELEASE_JSON" | jq -r .tag_name | sed 's/^v//')
-          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+          VERSION=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; data=json.loads(sys.stdin.read(), strict=False); print(data.get('tag_name',''))")
+          if [ -z "$VERSION" ]; then
             echo "::error::Não foi possível obter a versão mais recente do Codeberg."
             exit 1
           fi
+          VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Versão mais recente: $VERSION"
 
@@ -102,7 +103,6 @@ jobs:
           PKG_ARCH=$(dpkg-deb -f "$DEB_ORIG" Architecture)
           echo "Pacote: $PKG_NAME $PKG_VERSION ($PKG_ARCH)"
 
-          # Mostrar as dependências geradas automaticamente
           echo "=== Depends geradas ==="
           dpkg-deb -f "$DEB_ORIG" Depends
           echo "========================"

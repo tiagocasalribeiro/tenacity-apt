@@ -19,16 +19,22 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    container: debian:trixie
 
     steps:
+      - name: Instalar dependências base do contentor
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git curl jq sudo
+
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: Instalar ferramentas e dependências
+      - name: Instalar ferramentas e dependências de build
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake ninja-build git curl jq \
+          apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build \
             dpkg-dev apt-utils gnupg \
             libavcodec-dev libavformat-dev libavutil-dev libflac++-dev \
             libglib2.0-dev libgtk-3-dev libid3tag0-dev libjack-jackd2-dev \
@@ -60,6 +66,7 @@ jobs:
             https://codeberg.org/tenacityteam/tenacity.git tenacity-source
 
           cd tenacity-source
+          git config --global --add safe.directory "$PWD"
           git submodule update --init --recursive
           git submodule status
           ls -la lib-src/
@@ -82,7 +89,7 @@ jobs:
             -D CPACK_DEBIAN_PACKAGE_MAINTAINER="Tiago Casal Ribeiro <79724578+tiagocasalribeiro@users.noreply.github.com>" \
             -D CPACK_DEBIAN_PACKAGE_REPLACES="audacity, audacity-data" \
             -D CPACK_DEBIAN_PACKAGE_CONFLICTS="audacity, audacity-data" \
-            -D CPACK_DEBIAN_PACKAGE_DEPENDS="libc6, libgtk-3-0, libwxgtk3.2-1, libsndfile1, libsoxr0, libsqlite3-0, libportaudio2, libportmidi0, libportsmf0, libid3tag0, libmad0, libtwolame0, libogg0, libvorbis0a, libvorbisenc2, libvorbisfile3, libflac12 | libflac13 | libflac14, libflac++10 | libflac++11 | libflac++12, libsbsms10, libsoundtouch1, libavcodec60 | libavcodec61, libavformat60 | libavformat61, libavutil58 | libavutil59, libvamp-hostsdk3v5, liblilv-0-0, libsuil-0-0, libserd-0-0, libsord-0-0, zlib1g, libexpat1, libmpg123-0"
+            -D CPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON
 
           DEB_ORIG=$(find build -name "*.deb" | head -n 1)
           if [ -z "$DEB_ORIG" ]; then
@@ -94,6 +101,11 @@ jobs:
           PKG_VERSION=$(dpkg-deb -f "$DEB_ORIG" Version)
           PKG_ARCH=$(dpkg-deb -f "$DEB_ORIG" Architecture)
           echo "Pacote: $PKG_NAME $PKG_VERSION ($PKG_ARCH)"
+
+          # Mostrar as dependências geradas automaticamente
+          echo "=== Depends geradas ==="
+          dpkg-deb -f "$DEB_ORIG" Depends
+          echo "========================"
 
           NEW_NAME="${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
           mv "$DEB_ORIG" "$GITHUB_WORKSPACE/$NEW_NAME"

@@ -74,9 +74,7 @@ jobs:
         run: |
           cd tenacity-source
 
-          # Forçar o nome do pacote para "tenacity"
           sed -i 's/^[Ss][Ee][Tt](CPACK_PACKAGE_NAME .*/set(CPACK_PACKAGE_NAME "tenacity")/' build/CPackConfig.cmake
-          echo "=== Verificação do CPackConfig ==="
           grep -i "CPACK_PACKAGE_NAME" build/CPackConfig.cmake
 
           cpack --config build/CPackConfig.cmake -G DEB \
@@ -97,7 +95,6 @@ jobs:
 
           NEW_NAME="${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
           mv "$DEB_ORIG" "$GITHUB_WORKSPACE/$NEW_NAME"
-          echo "Renomeado para: $NEW_NAME"
           ls -la "$GITHUB_WORKSPACE"/*.deb
 
       - name: Importar chave GPG
@@ -114,27 +111,6 @@ jobs:
           mkdir -p site/dists/stable/main/binary-amd64
           cp "$GITHUB_WORKSPACE"/*.deb site/pool/main/t/tenacity/
           gpg --export --armor "$GPG_KEY_ID" > site/KEY.gpg
-
-      - name: Debug - inspecionar pool e pacote
-        run: |
-          echo "=== Estrutura do site ==="
-          find site -type f -o -type d | sort
-
-          echo ""
-          echo "=== Ficheiros .deb no pool ==="
-          find site/pool -name "*.deb" -exec ls -la {} \;
-
-          echo ""
-          echo "=== Campos do .deb ==="
-          for deb in $(find site/pool -name "*.deb"); do
-            echo "Ficheiro: $deb"
-            dpkg-deb -f "$deb" Package Version Architecture 2>&1 || echo "ERRO ao ler o .deb"
-          done
-
-          echo ""
-          echo "=== Teste dpkg-scanpackages ==="
-          cd site
-          dpkg-scanpackages --arch amd64 pool/main /dev/null
 
       - name: Gerar metadados APT
         run: |
@@ -159,11 +135,13 @@ jobs:
           gpg --batch --yes --default-key "$GPG_KEY_ID" --clearsign -o InRelease Release
           gpg --batch --yes --default-key "$GPG_KEY_ID" --detach-sign --armor -o Release.gpg Release
 
-          if [ ! -s ../dists/stable/main/binary-amd64/Packages ]; then
+          # Verificação com caminho correto (estamos em site/dists/stable)
+          if [ ! -s main/binary-amd64/Packages ]; then
             echo "::error::Ficheiro Packages está vazio!"
             exit 1
           fi
-          head -20 ../dists/stable/main/binary-amd64/Packages
+          echo "=== Packages preview ==="
+          head -20 main/binary-amd64/Packages
 
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5

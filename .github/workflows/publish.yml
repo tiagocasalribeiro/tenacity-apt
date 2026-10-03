@@ -24,11 +24,11 @@ jobs:
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: Instalar ferramentas
+      - name: Instalar ferramentas e dependências
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ninja-build git \
+            build-essential cmake ninja-build git curl jq \
             dpkg-dev apt-utils gnupg \
             libavcodec-dev libavformat-dev libavutil-dev libflac++-dev \
             libglib2.0-dev libgtk-3-dev libid3tag0-dev libjack-jackd2-dev \
@@ -38,14 +38,17 @@ jobs:
             libsuil-dev libtwolame-dev vamp-plugin-sdk libvorbis-dev lv2-dev \
             zlib1g-dev libjpeg-dev libtiff-dev liblzma-dev libsqlite3-dev \
             libzip-dev zipcmp zipmerge ziptool rapidjson-dev \
-            wx-common wx3.2-headers libwxgtk3.2-dev
+            wx-common libwxgtk3.2-dev
 
       - name: Obter a versão mais recente do Tenacity
         id: get_version
         run: |
-          # Consulta a API do Codeberg para a última release
           RELEASE_JSON=$(curl -s https://codeberg.org/api/v1/repos/tenacityteam/tenacity/releases/latest)
           VERSION=$(echo "$RELEASE_JSON" | jq -r .tag_name | sed 's/^v//')
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "::error::Não foi possível obter a versão mais recente do Codeberg."
+            exit 1
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Versão mais recente: $VERSION"
 
@@ -53,9 +56,18 @@ jobs:
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
           curl -L -o tenacity.tar.gz "https://codeberg.org/tenacityteam/tenacity/archive/v${VERSION}.tar.gz"
+
+          echo "=== Conteúdo do arquivo ==="
+          tar -tzf tenacity.tar.gz | head -5
+
           tar -xzf tenacity.tar.gz
-          # O diretório extraído segue o padrão tenacity-<versão>
-          mv tenacity-${VERSION} tenacity-source
+
+          # Descobrir o nome da pasta extraída automaticamente
+          EXTRACTED_DIR=$(tar -tzf tenacity.tar.gz | head -1 | cut -d'/' -f1)
+          echo "Pasta extraída: $EXTRACTED_DIR"
+
+          mv "$EXTRACTED_DIR" tenacity-source
+          ls -la tenacity-source/
 
       - name: Compilar o Tenacity
         run: |
@@ -66,11 +78,15 @@ jobs:
       - name: Gerar o pacote .deb
         run: |
           cd tenacity-source
-          # O cpack gera o pacote na pasta build/package
           cpack --config build/CPackConfig.cmake -G DEB
-          # Mover o .deb para a raiz do workspace
           find build -name "*.deb" -exec mv {} "$GITHUB_WORKSPACE"/ \;
+          echo "=== Pacotes gerados ==="
           ls -la "$GITHUB_WORKSPACE"/*.deb
+
+          if [ "$(find . -name "*.deb" | wc -l)" -eq 0 ]; then
+            echo "::error::Nenhum pacote .deb foi gerado."
+            exit 1
+          fi
 
       - name: Importar chave GPG
         env:
@@ -79,19 +95,21 @@ jobs:
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           GPG_KEY_ID="$(gpg --list-keys --with-colons | awk -F: '/^pub:/ {print $5; exit}')"
           echo "GPG_KEY_ID=$GPG_KEY_ID" >> "$GITHUB_ENV"
+          gpg --export --armor "$GPG_KEY_ID" > site/KEY.gpg
 
       - name: Criar estrutura do site APT
         run: |
           mkdir -p site/pool/main/t/tenacity
           mkdir -p site/dists/stable/main/binary-amd64
-          cp *.deb site/pool/main/t/tenacity/
-          gpg --export --armor "$GPG_KEY_ID" > site/KEY.gpg
+          cp "$GITHUB_WORKSPACE"/*.deb site/pool/main/t/tenacity/
 
       - name: Gerar metadados APT
         run: |
           cd site
-          dpkg-scanpackages pool/main /dev/null 2>/dev/null > dists/stable/main/binary-amd64/Packages
-          gzip -9c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+          dpkg-scanpackages pool/main /dev/null 2>/dev/null \
+            > dists/stable/main/binary-amd64/Packages
+          gzip -9c dists/stable/main/binary-amd64/Packages \
+            > dists/stable/main/binary-amd64/Packages.gz
 
           cat > /tmp/ftp-release.conf << EOF
           APT::FTPArchive::Release::Origin "Tenacity Unofficial";
@@ -100,12 +118,21 @@ jobs:
           APT::FTPArchive::Release::Codename "stable";
           APT::FTPArchive::Release::Architectures "amd64";
           APT::FTPArchive::Release::Components "main";
+          APT::FTPArchive::Release::Description "Unofficial Debian packages for Tenacity";
           EOF
 
           cd dists/stable
           apt-ftparchive release -c=/tmp/ftp-release.conf . > Release
           gpg --batch --yes --default-key "$GPG_KEY_ID" --clearsign -o InRelease Release
           gpg --batch --yes --default-key "$GPG_KEY_ID" --detach-sign --armor -o Release.gpg Release
+
+          # Verificar que o Packages não está vazio
+          if [ ! -s ../dists/stable/main/binary-amd64/Packages ]; then
+            echo "::error::Ficheiro Packages está vazio!"
+            exit 1
+          fi
+          echo "=== Packages preview ==="
+          head -20 ../dists/stable/main/binary-amd64/Packages
 
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5

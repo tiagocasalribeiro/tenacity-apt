@@ -34,7 +34,7 @@ jobs:
       - name: Instalar ferramentas e dependências de build
         run: |
           apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build \
+            build-essential cmake ninja-build file \
             dpkg-dev apt-utils gnupg \
             libavcodec-dev libavformat-dev libavutil-dev libflac++-dev \
             libglib2.0-dev libgtk-3-dev libid3tag0-dev libjack-jackd2-dev \

@@ -24,7 +24,7 @@ jobs:
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: Instalar ferramentas e dependências
+      - name: Instalar ferramentas e dependências (lista corrigida)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -38,7 +38,8 @@ jobs:
             libsuil-dev libtwolame-dev vamp-plugin-sdk libvorbis-dev lv2-dev \
             zlib1g-dev libjpeg-dev libtiff-dev liblzma-dev libsqlite3-dev \
             libzip-dev zipcmp zipmerge ziptool rapidjson-dev \
-            wx-common libwxgtk3.2-dev
+            wx-common wx3.2-headers libwxgtk3.2-dev \
+            libjsoncpp-dev libsbsms-dev libmpg123-dev
 
       - name: Obter a versão mais recente do Tenacity
         id: get_version

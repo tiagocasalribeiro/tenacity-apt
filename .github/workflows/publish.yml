@@ -115,10 +115,31 @@ jobs:
           cp "$GITHUB_WORKSPACE"/*.deb site/pool/main/t/tenacity/
           gpg --export --armor "$GPG_KEY_ID" > site/KEY.gpg
 
+      - name: Debug - inspecionar pool e pacote
+        run: |
+          echo "=== Estrutura do site ==="
+          find site -type f -o -type d | sort
+
+          echo ""
+          echo "=== Ficheiros .deb no pool ==="
+          find site/pool -name "*.deb" -exec ls -la {} \;
+
+          echo ""
+          echo "=== Campos do .deb ==="
+          for deb in $(find site/pool -name "*.deb"); do
+            echo "Ficheiro: $deb"
+            dpkg-deb -f "$deb" Package Version Architecture 2>&1 || echo "ERRO ao ler o .deb"
+          done
+
+          echo ""
+          echo "=== Teste dpkg-scanpackages ==="
+          cd site
+          dpkg-scanpackages --arch amd64 pool/main /dev/null
+
       - name: Gerar metadados APT
         run: |
           cd site
-          dpkg-scanpackages --arch amd64 pool/main /dev/null 2>/dev/null \
+          dpkg-scanpackages --arch amd64 pool/main /dev/null \
             > dists/stable/main/binary-amd64/Packages
           gzip -9c dists/stable/main/binary-amd64/Packages \
             > dists/stable/main/binary-amd64/Packages.gz

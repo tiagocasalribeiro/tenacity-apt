@@ -73,7 +73,11 @@ jobs:
       - name: Gerar o pacote .deb
         run: |
           cd tenacity-source
-          VERSION="${{ steps.get_version.outputs.version }}"
+
+          # Forçar o nome do pacote para "tenacity"
+          sed -i 's/^[Ss][Ee][Tt](CPACK_PACKAGE_NAME .*/set(CPACK_PACKAGE_NAME "tenacity")/' build/CPackConfig.cmake
+          echo "=== Verificação do CPackConfig ==="
+          grep -i "CPACK_PACKAGE_NAME" build/CPackConfig.cmake
 
           cpack --config build/CPackConfig.cmake -G DEB \
             -D CPACK_PACKAGE_CONTACT="Tiago Casal Ribeiro <79724578+tiagocasalribeiro@users.noreply.github.com>" \
@@ -86,7 +90,12 @@ jobs:
             exit 1
           fi
 
-          NEW_NAME="tenacity_${VERSION}_amd64.deb"
+          PKG_NAME=$(dpkg-deb -f "$DEB_ORIG" Package)
+          PKG_VERSION=$(dpkg-deb -f "$DEB_ORIG" Version)
+          PKG_ARCH=$(dpkg-deb -f "$DEB_ORIG" Architecture)
+          echo "Pacote: $PKG_NAME $PKG_VERSION ($PKG_ARCH)"
+
+          NEW_NAME="${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
           mv "$DEB_ORIG" "$GITHUB_WORKSPACE/$NEW_NAME"
           echo "Renomeado para: $NEW_NAME"
           ls -la "$GITHUB_WORKSPACE"/*.deb
@@ -109,7 +118,7 @@ jobs:
       - name: Gerar metadados APT
         run: |
           cd site
-          dpkg-scanpackages pool/main /dev/null 2>/dev/null \
+          dpkg-scanpackages --arch amd64 pool/main /dev/null 2>/dev/null \
             > dists/stable/main/binary-amd64/Packages
           gzip -9c dists/stable/main/binary-amd64/Packages \
             > dists/stable/main/binary-amd64/Packages.gz

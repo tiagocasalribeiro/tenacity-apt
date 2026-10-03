@@ -80,7 +80,7 @@ jobs:
           cpack --config build/CPackConfig.cmake -G DEB \
             -D CPACK_PACKAGE_CONTACT="Tiago Casal Ribeiro <79724578+tiagocasalribeiro@users.noreply.github.com>" \
             -D CPACK_DEBIAN_PACKAGE_MAINTAINER="Tiago Casal Ribeiro <79724578+tiagocasalribeiro@users.noreply.github.com>" \
-            -D CPACK_DEBIAN_PACKAGE_DEPENDS="libc6, libgtk-3-0, libwxgtk3.2-1, libsndfile1, libsoxr0, libsqlite3-0, libportaudio2, libportmidi0, libportsmf0, libid3tag0, libmad0, libtwolame0, libogg0, libvorbis0a, libvorbisenc2, libvorbisfile3, libflac12 | libflac13 | libflac14, libflac++10 | libflac++12 | libflac++14, libsbsms10, libsoundtouch1, libavcodec60 | libavcodec61, libavformat60 | libavformat61, libavutil58 | libavutil59, libvamp-hostsdk3v5, liblilv-0-0, libsuil-0-0, libserd-0-0, libsord-0-0, zlib1g, libexpat1, libmpg123-0"
+            -D CPACK_DEBIAN_PACKAGE_DEPENDS="libc6, libgtk-3-0, libwxgtk3.2-1, libsndfile1, libsoxr0, libsqlite3-0, libportaudio2, libportmidi0, libportsmf0, libid3tag0, libmad0, libtwolame0, libogg0, libvorbis0a, libvorbisenc2, libvorbisfile3, libflac12 | libflac13 | libflac14, libflac++10 | libflac++11 | libflac++12, libsbsms10, libsoundtouch1, libavcodec60 | libavcodec61, libavformat60 | libavformat61, libavutil58 | libavutil59, libvamp-hostsdk3v5, liblilv-0-0, libsuil-0-0, libserd-0-0, libsord-0-0, zlib1g, libexpat1, libmpg123-0"
 
           DEB_ORIG=$(find build -name "*.deb" | head -n 1)
           if [ -z "$DEB_ORIG" ]; then

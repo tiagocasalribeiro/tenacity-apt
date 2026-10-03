@@ -60,10 +60,15 @@ jobs:
             https://codeberg.org/tenacityteam/tenacity.git tenacity-source
 
           cd tenacity-source
-          # Inicializar apenas os submódulos necessários
-          git submodule update --init lib-src/libnyquist
-          git submodule update --init lib-src/pffft
-          git submodule update --init lib-src/pffft2
+
+          echo "=== Submódulos definidos no .gitmodules ==="
+          cat .gitmodules || echo "(sem .gitmodules)"
+          echo "============================================"
+
+          git submodule update --init --recursive
+
+          echo "=== Submódulos após inicialização ==="
+          git submodule status
 
           echo "=== Conteúdo de lib-src ==="
           ls -la lib-src/

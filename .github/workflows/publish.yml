@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 0 * * *'   # Diariamente à meia-noite UTC
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 permissions:
@@ -60,17 +60,8 @@ jobs:
             https://codeberg.org/tenacityteam/tenacity.git tenacity-source
 
           cd tenacity-source
-
-          echo "=== Submódulos definidos no .gitmodules ==="
-          cat .gitmodules || echo "(sem .gitmodules)"
-          echo "============================================"
-
           git submodule update --init --recursive
-
-          echo "=== Submódulos após inicialização ==="
           git submodule status
-
-          echo "=== Conteúdo de lib-src ==="
           ls -la lib-src/
 
       - name: Compilar o Tenacity
@@ -82,20 +73,23 @@ jobs:
       - name: Gerar o pacote .deb
         run: |
           cd tenacity-source
+          VERSION="${{ steps.get_version.outputs.version }}"
 
           cpack --config build/CPackConfig.cmake -G DEB \
             -D CPACK_PACKAGE_CONTACT="Tiago Casal Ribeiro <79724578+tiagocasalribeiro@users.noreply.github.com>" \
             -D CPACK_DEBIAN_PACKAGE_MAINTAINER="Tiago Casal Ribeiro <79724578+tiagocasalribeiro@users.noreply.github.com>" \
             -D CPACK_DEBIAN_PACKAGE_DEPENDS="libc6, libgtk-3-0, libwxgtk3.2-1, libsndfile1, libsoxr0, libsqlite3-0, libportaudio2, libportmidi0, libportsmf0, libid3tag0, libmad0, libtwolame0, libogg0, libvorbis0a, libvorbisenc2, libvorbisfile3, libflac12, libflac++10, libsbsms10, libsoundtouch1, libavcodec60, libavformat60, libavutil58, libvamp-hostsdk3v5, liblilv-0-0, libsuil-0-0, libserd-0-0, libsord-0-0, zlib1g, libexpat1, libmpg123-0"
 
-          find build -name "*.deb" -exec mv {} "$GITHUB_WORKSPACE"/ \;
-          echo "=== Pacotes gerados ==="
-          ls -la "$GITHUB_WORKSPACE"/*.deb
-
-          if [ "$(find . -name "*.deb" | wc -l)" -eq 0 ]; then
-            echo "::error::Nenhum pacote .deb foi gerado."
+          DEB_ORIG=$(find build -name "*.deb" | head -n 1)
+          if [ -z "$DEB_ORIG" ]; then
+            echo "::error::Nenhum pacote .deb foi gerado pelo cpack."
             exit 1
           fi
+
+          NEW_NAME="tenacity_${VERSION}_amd64.deb"
+          mv "$DEB_ORIG" "$GITHUB_WORKSPACE/$NEW_NAME"
+          echo "Renomeado para: $NEW_NAME"
+          ls -la "$GITHUB_WORKSPACE"/*.deb
 
       - name: Importar chave GPG
         env:
@@ -139,7 +133,6 @@ jobs:
             echo "::error::Ficheiro Packages está vazio!"
             exit 1
           fi
-          echo "=== Packages preview ==="
           head -20 ../dists/stable/main/binary-amd64/Packages
 
       - name: Configurar GitHub Pages

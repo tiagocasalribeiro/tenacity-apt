@@ -24,7 +24,7 @@ jobs:
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: Instalar ferramentas e dependências (lista corrigida)
+      - name: Instalar ferramentas e dependências
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -53,22 +53,20 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Versão mais recente: $VERSION"
 
-      - name: Descarregar e extrair o código-fonte
+      - name: Clonar o código-fonte com submódulos
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          curl -L -o tenacity.tar.gz "https://codeberg.org/tenacityteam/tenacity/archive/v${VERSION}.tar.gz"
+          git clone --depth 1 --branch "v${VERSION}" \
+            https://codeberg.org/tenacityteam/tenacity.git tenacity-source
 
-          echo "=== Conteúdo do arquivo ==="
-          tar -tzf tenacity.tar.gz | head -5
+          cd tenacity-source
+          # Inicializar apenas os submódulos necessários
+          git submodule update --init lib-src/libnyquist
+          git submodule update --init lib-src/pffft
+          git submodule update --init lib-src/pffft2
 
-          tar -xzf tenacity.tar.gz
-
-          # Descobrir o nome da pasta extraída automaticamente
-          EXTRACTED_DIR=$(tar -tzf tenacity.tar.gz | head -1 | cut -d'/' -f1)
-          echo "Pasta extraída: $EXTRACTED_DIR"
-
-          mv "$EXTRACTED_DIR" tenacity-source
-          ls -la tenacity-source/
+          echo "=== Conteúdo de lib-src ==="
+          ls -la lib-src/
 
       - name: Compilar o Tenacity
         run: |
@@ -127,7 +125,6 @@ jobs:
           gpg --batch --yes --default-key "$GPG_KEY_ID" --clearsign -o InRelease Release
           gpg --batch --yes --default-key "$GPG_KEY_ID" --detach-sign --armor -o Release.gpg Release
 
-          # Verificar que o Packages não está vazio
           if [ ! -s ../dists/stable/main/binary-amd64/Packages ]; then
             echo "::error::Ficheiro Packages está vazio!"
             exit 1

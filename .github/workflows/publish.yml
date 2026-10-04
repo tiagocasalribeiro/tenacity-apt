@@ -31,7 +31,31 @@ jobs:
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
+      - name: Obter versão e verificar se já está publicada
+        id: get_version
+        run: |
+          RELEASE_JSON=$(curl -s https://codeberg.org/api/v1/repos/tenacityteam/tenacity/releases/latest)
+          VERSION=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; data=json.loads(sys.stdin.read(), strict=False); print(data.get('tag_name',''))")
+          if [ -z "$VERSION" ]; then
+            echo "::error::Não foi possível obter a versão mais recente do Codeberg."
+            exit 1
+          fi
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Versão mais recente: $VERSION"
+
+          DEB_URL="https://tiagocasalribeiro.github.io/tenacity-apt/pool/main/t/tenacity/tenacity_${VERSION}_amd64.deb"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$DEB_URL")
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "already_published=true" >> $GITHUB_OUTPUT
+            echo "✅ Versão $VERSION já está publicada. Nada a fazer."
+          else
+            echo "already_published=false" >> $GITHUB_OUTPUT
+            echo "🆕 Versão $VERSION ainda não publicada. Vai compilar."
+          fi
+
       - name: Instalar ferramentas e dependências de build
+        if: steps.get_version.outputs.already_published == 'false'
         run: |
           apt-get install -y --no-install-recommends \
             build-essential cmake ninja-build file \
@@ -47,20 +71,8 @@ jobs:
             wx-common wx3.2-headers libwxgtk3.2-dev \
             libjsoncpp-dev libsbsms-dev libmpg123-dev
 
-      - name: Obter a versão mais recente do Tenacity
-        id: get_version
-        run: |
-          RELEASE_JSON=$(curl -s https://codeberg.org/api/v1/repos/tenacityteam/tenacity/releases/latest)
-          VERSION=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; data=json.loads(sys.stdin.read(), strict=False); print(data.get('tag_name',''))")
-          if [ -z "$VERSION" ]; then
-            echo "::error::Não foi possível obter a versão mais recente do Codeberg."
-            exit 1
-          fi
-          VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Versão mais recente: $VERSION"
-
       - name: Clonar o código-fonte com submódulos
+        if: steps.get_version.outputs.already_published == 'false'
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
           git clone --depth 1 --branch "v${VERSION}" \
@@ -73,12 +85,14 @@ jobs:
           ls -la lib-src/
 
       - name: Compilar o Tenacity
+        if: steps.get_version.outputs.already_published == 'false'
         run: |
           cd tenacity-source
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
 
       - name: Gerar o pacote .deb
+        if: steps.get_version.outputs.already_published == 'false'
         run: |
           cd tenacity-source
 
@@ -112,6 +126,7 @@ jobs:
           ls -la "$GITHUB_WORKSPACE"/*.deb
 
       - name: Importar chave GPG
+        if: steps.get_version.outputs.already_published == 'false'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
@@ -120,6 +135,7 @@ jobs:
           echo "GPG_KEY_ID=$GPG_KEY_ID" >> "$GITHUB_ENV"
 
       - name: Criar estrutura do site APT
+        if: steps.get_version.outputs.already_published == 'false'
         run: |
           mkdir -p site/pool/main/t/tenacity
           mkdir -p site/dists/stable/main/binary-amd64
@@ -127,6 +143,7 @@ jobs:
           gpg --export --armor "$GPG_KEY_ID" > site/KEY.gpg
 
       - name: Gerar metadados APT
+        if: steps.get_version.outputs.already_published == 'false'
         run: |
           cd site
           dpkg-scanpackages --arch amd64 pool/main /dev/null \
@@ -156,12 +173,15 @@ jobs:
           head -20 main/binary-amd64/Packages
 
       - name: Configurar GitHub Pages
+        if: steps.get_version.outputs.already_published == 'false'
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
+        if: steps.get_version.outputs.already_published == 'false'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
       - name: Publicar no GitHub Pages
+        if: steps.get_version.outputs.already_published == 'false'
         uses: actions/deploy-pages@v4
